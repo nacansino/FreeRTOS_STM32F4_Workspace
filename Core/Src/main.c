@@ -22,7 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include "FreeRTOS.h"
+#include "task.h"
+#include "SEGGER_SYSVIEW.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,14 +45,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+#define DWT_CTRL	((volatile uint32_t*)0xE0001000)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void vTask1(void * pvParameters);
+static void vTask2(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -64,6 +68,8 @@ static void MX_GPIO_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+  BaseType_t task1_rv, task2_rv;
+  TaskHandle_t task1_handle, task2_handle;
 
   /* USER CODE END 1 */
 
@@ -86,6 +92,25 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
+
+  /* Enable cycle counting by setting the bit 0 of DWT_CTRL */
+  *DWT_CTRL |= 0x1;
+
+  SEGGER_SYSVIEW_Conf();
+  SEGGER_SYSVIEW_Start();
+
+  /* Create the task, storing the handle. */
+  task1_rv = xTaskCreate(vTask1, "Task 1", 200, "x111111111111111111111111111111111x", 1, &task1_handle);
+  task2_rv = xTaskCreate(vTask2, "Task 2", 200, "y222222222222222222222222222222222y", 1, &task2_handle);
+
+  configASSERT(task1_rv == pdPASS);
+  configASSERT(task2_rv == pdPASS);
+
+  /* Start the scheduler */
+  vTaskStartScheduler();
+
+  /* If the control comes here then the launch of the scheduler has failed
+   due to the insufficient memory */
 
   /* USER CODE END 2 */
 
@@ -284,7 +309,60 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+static void vTask1(void * pvParameters)
+{
+	char msg[100];
+
+	while(1)
+	{
+		// snprintf(msg, 100, "%s\n", (char*)pvParameters);
+		// SEGGER_SYSVIEW_PrintfTarget(msg);
+
+		printf("%s\n", (char*)pvParameters);
+
+		// Willingly give up the processor
+		taskYIELD();
+	}
+}
+
+static void vTask2(void * pvParameters)
+{
+	char msg[100];
+
+	while(1)
+	{
+		// snprintf(msg, 100, "%s\n", (char*)pvParameters);
+		// SEGGER_SYSVIEW_PrintfTarget(msg);
+
+		printf("%s\n", (char*)pvParameters);
+
+		// Willingly give up the processor
+		taskYIELD();
+	}
+}
+
 /* USER CODE END 4 */
+
+ /**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

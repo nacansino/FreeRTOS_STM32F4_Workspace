@@ -214,6 +214,9 @@ void vPortEndScheduler( void ) PRIVILEGED_FUNCTION;
                                     uint32_t ulStackDepth ) PRIVILEGED_FUNCTION;
 #endif
 
+
+void vInitPrioGroupValue(void);
+
 /* *INDENT-OFF* */
 #ifdef __cplusplus
     }
