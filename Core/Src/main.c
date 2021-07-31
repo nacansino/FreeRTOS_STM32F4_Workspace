@@ -326,6 +326,7 @@ static void vTask1(void * pvParameters)
 
 	while(1)
 	{
+		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE");
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 		vTaskDelayUntil(&xLastWakeTime, 1000);
 	}
@@ -338,6 +339,7 @@ static void vTask2(void * pvParameters)
 
 	while(1)
 	{
+		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE");
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 		vTaskDelayUntil(&xLastWakeTime, 800);
 	}
@@ -350,6 +352,7 @@ static void vTask3(void * pvParameters)
 
 	while(1)
 	{
+		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE");
 		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
 		vTaskDelayUntil(&xLastWakeTime, 400);
 	}
