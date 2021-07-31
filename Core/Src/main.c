@@ -52,6 +52,8 @@
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 /* USER CODE BEGIN PFP */
+extern void SEGGER_UART_init(U32 baud);
+
 static void vTask1(void * pvParameters);
 static void vTask2(void * pvParameters);
 /* USER CODE END PFP */

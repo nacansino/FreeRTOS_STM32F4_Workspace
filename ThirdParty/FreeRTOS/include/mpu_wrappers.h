@@ -1,8 +1,6 @@
 /*
- * FreeRTOS Kernel V10.4.4
- * Copyright (C) 2021 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
- *
- * SPDX-License-Identifier: MIT
+ * FreeRTOS Kernel V10.4.3
+ * Copyright (C) 2020 Amazon.com, Inc. or its affiliates.  All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of
  * this software and associated documentation files (the "Software"), to deal in
@@ -31,7 +29,7 @@
 
 /* This file redefines API functions to be called through a wrapper macro, but
  * only for ports that are using the MPU. */
-#if ( portUSING_MPU_WRAPPERS == 1 )
+#ifdef portUSING_MPU_WRAPPERS
 
 /* MPU_WRAPPERS_INCLUDED_FROM_API_FILE will be defined when this file is
  * included from queue.c or task.c to prevent it from having an effect within
@@ -179,6 +177,7 @@
     #define PRIVILEGED_FUNCTION
     #define PRIVILEGED_DATA
     #define FREERTOS_SYSTEM_CALL
+    #define portUSING_MPU_WRAPPERS    0
 
 #endif /* portUSING_MPU_WRAPPERS */
 
