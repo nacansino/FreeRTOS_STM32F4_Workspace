@@ -74,11 +74,6 @@ void HAL_MspInit(void)
 
   /* USER CODE BEGIN MspInit 1 */
 
-  // Have to initialize this manually because SystemView needs this.
-  // Actually, the scheduler handles it internally already,
-  // but since the SystemView is called before the scheduler functions
-  // then we have to initialize it manually
-  vInitPrioGroupValue();
   /* USER CODE END MspInit 1 */
 }
 

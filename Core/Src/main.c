@@ -56,6 +56,7 @@ extern void SEGGER_UART_init(U32 baud);
 
 static void vTask1(void * pvParameters);
 static void vTask2(void * pvParameters);
+static void vTask3(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -70,8 +71,8 @@ static void vTask2(void * pvParameters);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  BaseType_t task1_rv, task2_rv;
-  TaskHandle_t task1_handle, task2_handle;
+  BaseType_t task1_rv, task2_rv, task3_rv;
+  TaskHandle_t task1_handle, task2_handle, task3_handle;
 
   /* USER CODE END 1 */
 
@@ -98,17 +99,22 @@ int main(void)
   /* Enable cycle counting by setting the bit 0 of DWT_CTRL */
   *DWT_CTRL |= 0x1;
 
+  //NVIC_SetPriorityGrouping(0); // Set when using segger on debugger mode (not realtime)
+
   SEGGER_UART_init(500000);
 
   SEGGER_SYSVIEW_Conf();
-  // SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already clled inside SEGGER_UART_init();
+  //SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already clled inside SEGGER_UART_init();
 
   /* Create the task, storing the handle. */
-  task1_rv = xTaskCreate(vTask1, "Task 1", 200, "x111111111111111111111111111111111x", 1, &task1_handle);
-  task2_rv = xTaskCreate(vTask2, "Task 2", 200, "y222222222222222222222222222222222y", 1, &task2_handle);
+  task1_rv = xTaskCreate(vTask1, "Task 1", 200, NULL, 1, &task1_handle);
+  task2_rv = xTaskCreate(vTask2, "Task 2", 200, NULL, 1, &task2_handle);
+  task3_rv = xTaskCreate(vTask3, "Task 3", 200, NULL, 1, &task3_handle);
 
+  /* Hard assertion check for passing tasks */
   configASSERT(task1_rv == pdPASS);
   configASSERT(task2_rv == pdPASS);
+  configASSERT(task3_rv == pdPASS);
 
   /* Start the scheduler */
   vTaskStartScheduler();
@@ -315,33 +321,37 @@ static void MX_GPIO_Init(void)
 
 static void vTask1(void * pvParameters)
 {
-	// char msg[100];
+	TickType_t xLastWakeTime;
+	xLastWakeTime = xTaskGetTickCount();
 
 	while(1)
 	{
-		// snprintf(msg, 100, "%s\n", (char*)pvParameters);
-		// SEGGER_SYSVIEW_PrintfTarget(msg);
-
-		printf("%s\n", (char*)pvParameters);
-
-		// Willingly give up the processor
-		taskYIELD();
+		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+		vTaskDelayUntil(&xLastWakeTime, 1000);
 	}
 }
 
 static void vTask2(void * pvParameters)
 {
-	// char msg[100];
+	TickType_t xLastWakeTime;
+	xLastWakeTime = xTaskGetTickCount();
 
 	while(1)
 	{
-		// snprintf(msg, 100, "%s\n", (char*)pvParameters);
-		// SEGGER_SYSVIEW_PrintfTarget(msg);
+		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+		vTaskDelayUntil(&xLastWakeTime, 800);
+	}
+}
 
-		printf("%s\n", (char*)pvParameters);
+static void vTask3(void * pvParameters)
+{
+	TickType_t xLastWakeTime;
+	xLastWakeTime = xTaskGetTickCount();
 
-		// Willingly give up the processor
-		taskYIELD();
+	while(1)
+	{
+		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
+		vTaskDelayUntil(&xLastWakeTime, 400);
 	}
 }
 
