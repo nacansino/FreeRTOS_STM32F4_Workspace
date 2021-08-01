@@ -342,8 +342,8 @@ static void vTask0(void * pvParameters)
 	{
 		if (xTaskNotifyWait(0, 0, NULL, 0))
 		{
-			// delete self
-			vTaskDelete(NULL);
+			// suspend self
+						vTaskSuspend(NULL);
 		}
 		HAL_Delay(4000);
 		vTaskDelay(pdMS_TO_TICKS(4000));
@@ -359,8 +359,8 @@ static void vTask1(void * pvParameters)
 	{
 		if (xTaskNotifyWait(0, 0, NULL, 0))
 		{
-			// delete self
-			vTaskDelete(NULL);
+			// suspend self
+			vTaskSuspend(NULL);
 		}
 		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
@@ -377,8 +377,8 @@ static void vTask2(void * pvParameters)
 	{
 		if (xTaskNotifyWait(0, 0, NULL, 0))
 		{
-			// delete self
-			vTaskDelete(NULL);
+			// suspend self
+			vTaskSuspend(NULL);
 		}
 		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE stack size: %d", uxTaskGetStackSize(task2_handle));
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
@@ -395,8 +395,8 @@ static void vTask3(void * pvParameters)
 	{
 		if (xTaskNotifyWait(0, 0, NULL, 0))
 		{
-			// delete self
-			vTaskDelete(NULL);
+			// suspend self
+			vTaskSuspend(NULL);
 		}
 		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE stack size: %d", uxTaskGetStackSize(task3_handle));
 		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
@@ -438,6 +438,13 @@ static void vTask4(void * pvParameters)
 						case 4:
 							(void)xTaskNotify(task0_handle, 0xFFFFFFFF, eSetBits);
 							break;
+						case 5:
+							// resume all tasks then reset isPressedCtr
+							vTaskResume(task1_handle);
+							vTaskResume(task2_handle);
+							vTaskResume(task3_handle);
+							vTaskResume(task0_handle);
+							isPressedCtr = 0;
 						default:
 							// Nothing to do here
 							break;
