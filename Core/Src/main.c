@@ -54,6 +54,7 @@ static void MX_GPIO_Init(void);
 /* USER CODE BEGIN PFP */
 extern void SEGGER_UART_init(U32 baud);
 
+static void vTask0(void * pvParameters);
 static void vTask1(void * pvParameters);
 static void vTask2(void * pvParameters);
 static void vTask3(void * pvParameters);
@@ -71,8 +72,8 @@ static void vTask3(void * pvParameters);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  BaseType_t task1_rv, task2_rv, task3_rv;
-  TaskHandle_t task1_handle, task2_handle, task3_handle;
+  BaseType_t task0_rv, task1_rv, task2_rv, task3_rv;
+  TaskHandle_t task0_handle, task1_handle, task2_handle, task3_handle;
 
   /* USER CODE END 1 */
 
@@ -107,14 +108,17 @@ int main(void)
   //SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already clled inside SEGGER_UART_init();
 
   /* Create the task, storing the handle. */
+  task0_rv = xTaskCreate(vTask0, "Task 0", 200, NULL, 2, &task0_handle);
+  configASSERT(task0_rv == pdPASS);
   task1_rv = xTaskCreate(vTask1, "Task 1", 200, NULL, 1, &task1_handle);
+  configASSERT(task1_rv == pdPASS);
   task2_rv = xTaskCreate(vTask2, "Task 2", 200, NULL, 1, &task2_handle);
+  configASSERT(task2_rv == pdPASS);
   task3_rv = xTaskCreate(vTask3, "Task 3", 200, NULL, 1, &task3_handle);
+  configASSERT(task3_rv == pdPASS);
 
   /* Hard assertion check for passing tasks */
-  configASSERT(task1_rv == pdPASS);
-  configASSERT(task2_rv == pdPASS);
-  configASSERT(task3_rv == pdPASS);
+
 
   /* Start the scheduler */
   vTaskStartScheduler();
@@ -319,6 +323,15 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+static void vTask0(void * pvParameters)
+{
+	while(1)
+	{
+		HAL_Delay(4000);
+		vTaskDelay(pdMS_TO_TICKS(4000));
+	}
+}
+
 static void vTask1(void * pvParameters)
 {
 	TickType_t xLastWakeTime;
@@ -328,7 +341,7 @@ static void vTask1(void * pvParameters)
 	{
 		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE");
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
-		vTaskDelayUntil(&xLastWakeTime, 1000);
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 	}
 }
 
@@ -341,7 +354,7 @@ static void vTask2(void * pvParameters)
 	{
 		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE");
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
-		vTaskDelayUntil(&xLastWakeTime, 800);
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(800));
 	}
 }
 
@@ -354,7 +367,7 @@ static void vTask3(void * pvParameters)
 	{
 		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE");
 		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
-		vTaskDelayUntil(&xLastWakeTime, 400);
+		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(400));
 	}
 }
 
