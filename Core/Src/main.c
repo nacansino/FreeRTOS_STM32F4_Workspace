@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <stdbool.h>
 #include "FreeRTOS.h"
 #include "task.h"
 #include "SEGGER_SYSVIEW.h"
@@ -45,7 +46,9 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-static TaskHandle_t task0_handle, task1_handle, task2_handle, task3_handle;
+static TaskHandle_t task0_handle, task1_handle,
+					task2_handle, task3_handle,
+					task4_handle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -61,6 +64,7 @@ static void vTask0(void * pvParameters);
 static void vTask1(void * pvParameters);
 static void vTask2(void * pvParameters);
 static void vTask3(void * pvParameters);
+static void vTask4(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -75,7 +79,7 @@ static void vTask3(void * pvParameters);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  BaseType_t task0_rv, task1_rv, task2_rv, task3_rv;
+  BaseType_t task0_rv, task1_rv, task2_rv, task3_rv, task4_rv;
 
   /* USER CODE END 1 */
 
@@ -115,7 +119,7 @@ int main(void)
   SEGGER_SYSVIEW_PrintfTarget(msg);
 
   /* Create the task, storing the handle. */
-  task0_rv = xTaskCreate(vTask0, "Task 0", 200, NULL, 2, &task0_handle);
+  task0_rv = xTaskCreate(vTask0, "Task 0", 200, NULL, 1, &task0_handle);
   configASSERT(task0_rv == pdPASS);
   task1_rv = xTaskCreate(vTask1, "Task 1", 200, NULL, 1, &task1_handle);
   configASSERT(task1_rv == pdPASS);
@@ -123,6 +127,8 @@ int main(void)
   configASSERT(task2_rv == pdPASS);
   task3_rv = xTaskCreate(vTask3, "Task 3", 200, NULL, 1, &task3_handle);
   configASSERT(task3_rv == pdPASS);
+  task4_rv = xTaskCreate(vTask4, "Task 4", 200, NULL, 2, &task4_handle);
+  configASSERT(task4_rv == pdPASS);
 
   /* Hard assertion check for passing tasks */
 
@@ -315,7 +321,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pins : Audio_SCL_Pin Audio_SDA_Pin */
   GPIO_InitStruct.Pin = Audio_SCL_Pin|Audio_SDA_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
@@ -334,6 +340,11 @@ static void vTask0(void * pvParameters)
 {
 	while(1)
 	{
+		if (xTaskNotifyWait(0, 0, NULL, 0))
+		{
+			// delete self
+			vTaskDelete(NULL);
+		}
 		HAL_Delay(4000);
 		vTaskDelay(pdMS_TO_TICKS(4000));
 	}
@@ -346,6 +357,11 @@ static void vTask1(void * pvParameters)
 
 	while(1)
 	{
+		if (xTaskNotifyWait(0, 0, NULL, 0))
+		{
+			// delete self
+			vTaskDelete(NULL);
+		}
 		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
@@ -359,6 +375,11 @@ static void vTask2(void * pvParameters)
 
 	while(1)
 	{
+		if (xTaskNotifyWait(0, 0, NULL, 0))
+		{
+			// delete self
+			vTaskDelete(NULL);
+		}
 		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE stack size: %d", uxTaskGetStackSize(task2_handle));
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(800));
@@ -372,15 +393,82 @@ static void vTask3(void * pvParameters)
 
 	while(1)
 	{
+		if (xTaskNotifyWait(0, 0, NULL, 0))
+		{
+			// delete self
+			vTaskDelete(NULL);
+		}
 		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE stack size: %d", uxTaskGetStackSize(task3_handle));
 		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(400));
 	}
 }
 
+static void vTask4(void * pvParameters)
+{
+#define USER_PIN_STATE HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin)
+	uint16_t debounceCtr = 0;
+	uint8_t isPressedCtr = 0;
+	bool isPressed = false;
+
+	while(1)
+	{
+		if (USER_PIN_STATE == GPIO_PIN_SET)
+		{
+			if (!isPressed)
+			{
+				debounceCtr++;
+				if (debounceCtr > 2)
+				{
+					isPressed = true;
+					SEGGER_SYSVIEW_PrintfTarget("User Button Pressed %d times", ++isPressedCtr);
+
+					// Distribute notifications
+					switch(isPressedCtr)
+					{
+						case 1:
+							(void)xTaskNotify(task1_handle, 0xFFFFFFFF, eSetBits);
+							break;
+						case 2:
+							(void)xTaskNotify(task2_handle, 0xFFFFFFFF, eSetBits);
+							break;
+						case 3:
+							(void)xTaskNotify(task3_handle, 0xFFFFFFFF, eSetBits);
+							break;
+						case 4:
+							(void)xTaskNotify(task0_handle, 0xFFFFFFFF, eSetBits);
+							break;
+						default:
+							// Nothing to do here
+							break;
+					};
+
+				}
+			}
+			else
+			{
+				// do nothing. button is pressed and detected already
+			}
+		}
+		else
+		{
+			// button is released
+			debounceCtr = 0;
+			if (isPressed)
+			{
+				SEGGER_SYSVIEW_PrintfTarget("User Button Released");
+				isPressed = false;
+			}
+		}
+
+		// Poll for 10ms
+		vTaskDelay(10);
+	}
+}
+
 /* USER CODE END 4 */
 
- /**
+/**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM6 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
