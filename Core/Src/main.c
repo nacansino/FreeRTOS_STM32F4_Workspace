@@ -39,13 +39,13 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define DWT_CTRL	((volatile uint32_t*)0xE0001000)
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-#define DWT_CTRL	((volatile uint32_t*)0xE0001000)
+static TaskHandle_t task0_handle, task1_handle, task2_handle, task3_handle;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -53,6 +53,9 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 /* USER CODE BEGIN PFP */
 extern void SEGGER_UART_init(U32 baud);
+
+extern size_t uxTaskGetTCBSize(void);
+extern uint32_t uxTaskGetStackSize(TaskHandle_t xTask);
 
 static void vTask0(void * pvParameters);
 static void vTask1(void * pvParameters);
@@ -73,7 +76,6 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
   BaseType_t task0_rv, task1_rv, task2_rv, task3_rv;
-  TaskHandle_t task0_handle, task1_handle, task2_handle, task3_handle;
 
   /* USER CODE END 1 */
 
@@ -106,6 +108,11 @@ int main(void)
 
   SEGGER_SYSVIEW_Conf();
   //SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already clled inside SEGGER_UART_init();
+
+  /* Determine how big a TCB is */
+  char msg[32] = {0};
+  snprintf(msg, 32, "Size of TCB: %d bytes", uxTaskGetTCBSize());
+  SEGGER_SYSVIEW_PrintfTarget(msg);
 
   /* Create the task, storing the handle. */
   task0_rv = xTaskCreate(vTask0, "Task 0", 200, NULL, 2, &task0_handle);
@@ -339,7 +346,7 @@ static void vTask1(void * pvParameters)
 
 	while(1)
 	{
-		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE");
+		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 	}
@@ -352,7 +359,7 @@ static void vTask2(void * pvParameters)
 
 	while(1)
 	{
-		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE");
+		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE stack size: %d", uxTaskGetStackSize(task2_handle));
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(800));
 	}
@@ -365,7 +372,7 @@ static void vTask3(void * pvParameters)
 
 	while(1)
 	{
-		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE");
+		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE stack size: %d", uxTaskGetStackSize(task3_handle));
 		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(400));
 	}

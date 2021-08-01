@@ -331,6 +331,7 @@ __weak uint32_t HAL_GetTick(void)
   */
 uint32_t HAL_GetTickPrio(void)
 {
+
   return uwTickPrio;
 }
 

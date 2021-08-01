@@ -121,6 +121,12 @@ standard names. */
 #define xPortPendSVHandler PendSV_Handler
 #define xPortSysTickHandler SysTick_Handler
 
+/**
+ * For enabling addition of user functions inside tasks.c in FreeRTOS kernel
+ */
+#define FREERTOS_MODULE_TEST
+#define configRECORD_STACK_HIGH_ADDRESS 1
+
 /* For SEGGER.
  * The macros INCLUDE_xTaskGetIdleTaskHandle and INCLUDE_pxTaskGetStackStart
  * are necessary for SEGGER to work properly.
