@@ -473,6 +473,16 @@ static void vTask4(void * pvParameters)
 	}
 }
 
+/**
+ * @brief Idle hook for kernel
+ * 
+ */
+void vApplicationIdleHook( void )
+{
+  /* Set to sleep. Wake up when there is an interrupt */
+  HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+}
+
 /* USER CODE END 4 */
 
 /**
