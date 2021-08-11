@@ -24,8 +24,9 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <stdbool.h>
-#include "FreeRTOS.h"
-#include "task.h"
+#include <FreeRTOS.h>
+#include <task.h>
+#include <queue.h>
 #include "SEGGER_SYSVIEW.h"
 /* USER CODE END Includes */
 
@@ -36,6 +37,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define DBG_QUEUE_RX_LEN	(32)
+#define DBG_QUEUE_TX_LEN	(64)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,16 +47,22 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 static TaskHandle_t task0_handle, task1_handle,
 					task2_handle, task3_handle,
-					task4_handle;
+					task4_handle, task_shell_rx_handle, task_shell_tx_handle;
+static char shell_char_rcv;
+
+QueueHandle_t shell_queue_rx, shell_queue_tx;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 extern void SEGGER_UART_init(U32 baud);
 
@@ -65,6 +74,8 @@ static void vTask1(void * pvParameters);
 static void vTask2(void * pvParameters);
 static void vTask3(void * pvParameters);
 static void vTask4(void * pvParameters);
+static void vTask_Shell_RX(void * pvParameters);
+static void vTask_Shell_TX(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -79,7 +90,9 @@ static void vTask4(void * pvParameters);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  BaseType_t task0_rv, task1_rv, task2_rv, task3_rv, task4_rv;
+  BaseType_t task0_rv, task1_rv, task2_rv,
+	  	  	 task3_rv, task4_rv,
+			 task_shell_rx_rv, task_shell_tx_rv;
 
   /* USER CODE END 1 */
 
@@ -101,24 +114,27 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* Enable cycle counting by setting the bit 0 of DWT_CTRL */
   *DWT_CTRL |= 0x1;
 
-  //NVIC_SetPriorityGrouping(0); // Set when using segger on debugger mode (not realtime)
+  NVIC_SetPriorityGrouping(0); // Set when using segger on debugger mode (not realtime)
 
-  SEGGER_UART_init(500000);
+  //SEGGER_UART_init(500000);
 
   SEGGER_SYSVIEW_Conf();
-  //SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already clled inside SEGGER_UART_init();
+  SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already called inside SEGGER_UART_init();
 
   /* Determine how big a TCB is */
   char msg[32] = {0};
   snprintf(msg, 32, "Size of TCB: %d bytes", uxTaskGetTCBSize());
   SEGGER_SYSVIEW_PrintfTarget(msg);
 
-  /* Create the task, storing the handle. */
+  /* Create the task, storing the handle.
+   * With hard assertion check for passing tasks
+   */
   task0_rv = xTaskCreate(vTask0, "Task 0", 200, NULL, 1, &task0_handle);
   configASSERT(task0_rv == pdPASS);
   task1_rv = xTaskCreate(vTask1, "Task 1", 200, NULL, 1, &task1_handle);
@@ -129,8 +145,22 @@ int main(void)
   configASSERT(task3_rv == pdPASS);
   task4_rv = xTaskCreate(vTask4, "Task 4", 200, NULL, 2, &task4_handle);
   configASSERT(task4_rv == pdPASS);
+  task_shell_rx_rv = xTaskCreate(vTask_Shell_RX, "Shell RX Task", 200, NULL, 5, &task_shell_rx_handle);
+  configASSERT(task_shell_rx_rv == pdPASS);
+  task_shell_tx_rv = xTaskCreate(vTask_Shell_TX, "Shell TX Task", 200, NULL, 4, &task_shell_tx_handle);
+  configASSERT(task_shell_tx_rv == pdPASS);
 
-  /* Hard assertion check for passing tasks */
+  /* Create the queues for the debugger */
+  shell_queue_rx = xQueueCreate(DBG_QUEUE_RX_LEN, sizeof(char));
+  shell_queue_tx = xQueueCreate(DBG_QUEUE_TX_LEN, sizeof(char));
+
+  if( (shell_queue_rx == NULL) || (shell_queue_tx == NULL) )
+  {
+	  /* Queue was not created and must not be used. */
+  }
+
+  /* Start DBG_USR (USART3) Reception */
+  HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
 
 
   /* Start the scheduler */
@@ -194,6 +224,39 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
 }
 
 /**
@@ -364,6 +427,9 @@ static void vTask1(void * pvParameters)
 		}
 		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
+
+		char xxx[] = "The quick dog\r\n";
+		HAL_UART_Transmit_IT(&huart3, (uint8_t*)xxx, 15);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 	}
 }
@@ -473,6 +539,43 @@ static void vTask4(void * pvParameters)
 	}
 }
 
+static void vTask_Shell_RX(void * pvParameters)
+{
+	uint32_t ulNotifiedValue;
+
+	while(1)
+	{
+		/* Block indefinitely while we wait for user input */
+		xTaskNotifyWait(0x0, 0x0, &ulNotifiedValue, portMAX_DELAY);
+
+        if( ( ulNotifiedValue & 0x01 ) != 0 )
+        {
+            /* Bit 0 was set: CR/LF was received */
+
+        	/* Nothing to do here in theory */
+        }
+
+        if( ( ulNotifiedValue & 0x02 ) != 0 )
+        {
+            /* Bit 1 was set: Input queue is full */
+
+        	/* Raise Error */
+        }
+
+        /* Process buffer */
+
+
+	}
+}
+
+static void vTask_Shell_TX(void * pvParameters)
+{
+	while(1)
+	{
+
+	}
+}
+
 /**
  * @brief Idle hook for kernel
  * 
@@ -481,6 +584,36 @@ void vApplicationIdleHook( void )
 {
   /* Set to sleep. Wake up when there is an interrupt */
   HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+}
+
+/**
+ * UART Receive Callback IT
+ */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart == &huart3)
+	{
+		BaseType_t queue_rv;
+
+		/* Push to queue if received character is not CR*/
+		if (shell_char_rcv != '\r')
+		{
+			queue_rv = xQueueSendFromISR( shell_queue_rx, &shell_char_rcv, NULL );
+
+			if (queue_rv != pdTRUE)
+			{
+				/* Send notification to task that buffer is full */
+				(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x02, eSetBits, NULL );
+			}
+		}
+		else
+		{
+			/* Notify the task that a carriage return was received */
+			(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x01, eSetBits, NULL );
+		}
+
+		HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
+	}
 }
 
 /* USER CODE END 4 */
