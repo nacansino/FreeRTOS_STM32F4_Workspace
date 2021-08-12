@@ -24,21 +24,33 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdarg.h>
+
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
 #include "SEGGER_SYSVIEW.h"
+
+#include <printf.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+typedef struct {
+	char buffer[128];
+	size_t sz;
+} ShellQueueTX_t;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DBG_QUEUE_RX_LEN	(32)
-#define DBG_QUEUE_TX_LEN	(64)
+#define SHELL_QUEUE_RX_DEPTH	(32)
+#define SHELL_QUEUE_TX_DEPTH	(16)
+#define SHELL_QUEUE_TX_BUFF_SZ  (128)	/**!< Maximum size of each item in the
+											  shell TX queue */
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,11 +60,12 @@
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart3;
+DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USER CODE BEGIN PV */
 static TaskHandle_t task0_handle, task1_handle,
-					task2_handle, task3_handle,
-					task4_handle, task_shell_rx_handle, task_shell_tx_handle;
+				          	task2_handle, task3_handle,
+					          task4_handle, task_shell_rx_handle, task_shell_tx_handle;
 static char shell_char_rcv;
 
 QueueHandle_t shell_queue_rx, shell_queue_tx;
@@ -63,6 +76,7 @@ QueueHandle_t shell_queue_rx, shell_queue_tx;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_DMA_Init(void);
 /* USER CODE BEGIN PFP */
 extern void SEGGER_UART_init(U32 baud);
 
@@ -76,6 +90,9 @@ static void vTask3(void * pvParameters);
 static void vTask4(void * pvParameters);
 static void vTask_Shell_RX(void * pvParameters);
 static void vTask_Shell_TX(void * pvParameters);
+
+static int Shell_Printf(const char* format, ...);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -114,6 +131,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
@@ -151,8 +169,8 @@ int main(void)
   configASSERT(task_shell_tx_rv == pdPASS);
 
   /* Create the queues for the debugger */
-  shell_queue_rx = xQueueCreate(DBG_QUEUE_RX_LEN, sizeof(char));
-  shell_queue_tx = xQueueCreate(DBG_QUEUE_TX_LEN, sizeof(char));
+  shell_queue_rx = xQueueCreate(SHELL_QUEUE_RX_DEPTH, sizeof(char));
+  shell_queue_tx = xQueueCreate(SHELL_QUEUE_TX_DEPTH, sizeof(ShellQueueTX_t));
 
   if( (shell_queue_rx == NULL) || (shell_queue_tx == NULL) )
   {
@@ -256,6 +274,22 @@ static void MX_USART3_UART_Init(void)
   /* USER CODE BEGIN USART3_Init 2 */
 
   /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
 
 }
 
@@ -428,8 +462,7 @@ static void vTask1(void * pvParameters)
 		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 
-		char xxx[] = "The quick dog\r\n";
-		HAL_UART_Transmit_IT(&huart3, (uint8_t*)xxx, 15);
+		Shell_Printf("fuck you\r\n");
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 	}
 }
@@ -572,7 +605,21 @@ static void vTask_Shell_TX(void * pvParameters)
 {
 	while(1)
 	{
+		ShellQueueTX_t pTxItem;
 
+		xQueuePeek( shell_queue_tx, (void* const)&pTxItem, portMAX_DELAY );
+
+		if ( HAL_UART_Transmit_DMA( &huart3, (uint8_t*)&(pTxItem.buffer), pTxItem.sz) == HAL_OK )
+		{
+			/* Receive to remove used item from queue
+			 * It means the item has been processed already*/
+			(void)xQueueReceive( shell_queue_tx, (void* const)&pTxItem, (TickType_t) 0);
+		}
+		else
+		{
+			/* Delay 100ms before attempting again */
+			vTaskDelay(pdMS_TO_TICKS(50));
+		}
 	}
 }
 
@@ -614,6 +661,46 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 		HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
 	}
+}
+
+/**
+ * Shell function
+ * Do not use inside any ISR
+ */
+static int Shell_Printf(const char* format, ...)
+{
+  ShellQueueTX_t buffer_tx;
+  va_list va;
+
+  /* Format input then write it in buffer for a
+   * maximum length of SHELL_QUEUE_TX_BUFF_SZ
+   */
+  va_start(va, format);
+  const int ret = vsnprintf(buffer_tx.buffer, SHELL_QUEUE_TX_BUFF_SZ, format, va);
+  va_end(va);
+
+  if (ret > 0){
+	  /* Push to queue*/
+	  BaseType_t queue_rv;
+
+	  buffer_tx.sz = ret;
+	  queue_rv = xQueueSend( shell_queue_tx, (void*)&buffer_tx, 0);
+
+	  if (queue_rv != pdTRUE)
+	  {
+		  /* Todo: Handle case when buffer is full */
+	  }
+  }
+
+  return ret;
+}
+
+/**
+ * Implementation of _putchar for normal printf
+ */
+void _putchar(char character)
+{
+	(void)character;
 }
 
 /* USER CODE END 4 */
