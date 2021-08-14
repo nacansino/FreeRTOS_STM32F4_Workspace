@@ -120,6 +120,11 @@ int main(void)
 
   /* USER CODE BEGIN Init */
 
+  /* Bug fix for the initialization order.
+   * DMA must be initialized BEFORE the peripherals that uses them.
+   */
+  MX_DMA_Init();
+
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -131,8 +136,8 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART3_UART_Init();
+  MX_DMA_Init();
   /* USER CODE BEGIN 2 */
 
   /* Enable cycle counting by setting the bit 0 of DWT_CTRL */
@@ -595,8 +600,34 @@ static void vTask_Shell_RX(void * pvParameters)
         	/* Raise Error */
         }
 
-        /* Process buffer */
+        /* Empty the RX character queue into a character buffer */
+        char charbuf[SHELL_QUEUE_RX_DEPTH];
+        char c;
+        size_t i = 0;
 
+     	while( xQueueReceive(shell_queue_rx, &c, (TickType_t)0 ) == pdTRUE )
+	    {
+     		/* xRxedStructure now contains a copy of xMessage. */
+     		charbuf[i++] = c;
+	    }
+
+     	/*Do something wih charbuf*/
+
+     	if (i < SHELL_QUEUE_RX_DEPTH)
+     	{
+     		charbuf[i] = '\0';
+     	}
+     	else
+     	{
+     		/* Truncate */
+     		charbuf[SHELL_QUEUE_RX_DEPTH-1] = '\0';
+     	}
+
+     	Shell_Printf("Got: %s\r\n", charbuf);
+		Shell_Printf("Test seriesssss\r\n");
+		Shell_Printf("Test seriesssss\r\n");
+		Shell_Printf("Test seriesssss\r\n");
+		Shell_Printf("Test seriesssss\r\n");
 
 	}
 }
@@ -607,18 +638,13 @@ static void vTask_Shell_TX(void * pvParameters)
 	{
 		ShellQueueTX_t pTxItem;
 
-		xQueuePeek( shell_queue_tx, (void* const)&pTxItem, portMAX_DELAY );
+		if ( xQueueReceive( shell_queue_tx, (void* const)&pTxItem, (TickType_t) portMAX_DELAY) == pdTRUE )
+		{
+			HAL_UART_Transmit_DMA( &huart3, (uint8_t*)pTxItem.buffer, pTxItem.sz);
 
-		if ( HAL_UART_Transmit_DMA( &huart3, (uint8_t*)&(pTxItem.buffer), pTxItem.sz) == HAL_OK )
-		{
-			/* Receive to remove used item from queue
-			 * It means the item has been processed already*/
-			(void)xQueueReceive( shell_queue_tx, (void* const)&pTxItem, (TickType_t) 0);
-		}
-		else
-		{
-			/* Delay 100ms before attempting again */
-			vTaskDelay(pdMS_TO_TICKS(50));
+			/* Block until DMA completion */
+			xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
+
 		}
 	}
 }
@@ -664,6 +690,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 }
 
 /**
+ * UART Transmit Callback IT
+ */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+	/* Notify the TX to wake up*/
+	(void)xTaskNotifyFromISR( task_shell_tx_handle, 0, eSetBits, NULL );
+}
+
+/**
  * Shell function
  * Do not use inside any ISR
  */
@@ -697,6 +732,7 @@ static int Shell_Printf(const char* format, ...)
 
 /**
  * Implementation of _putchar for normal printf
+ * This is unused.
  */
 void _putchar(char character)
 {
