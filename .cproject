@@ -133,11 +133,6 @@
 						</toolChain>
 					</folderInfo>
 					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.2015279500.288942467" name="SEGGER_RTT_Conf.h" rcbsApplicability="disable" resourcePath="ThirdParty/SEGGER/Config/SEGGER_RTT_Conf.h" toolsToInvoke=""/>
-					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.2015279500.1715600091" name="segger_uart.c" rcbsApplicability="disable" resourcePath="ThirdParty/SEGGER/Recorder/segger_uart.c" toolsToInvoke="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.1571249881.1834387105">
-						<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.1571249881.1834387105" name="MCU GCC Compiler" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.1571249881">
-							<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.544012200" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
-						</tool>
-					</fileInfo>
 					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.2015279500.1008296638" name="Makefile" rcbsApplicability="disable" resourcePath="ThirdParty/printf/Makefile" toolsToInvoke=""/>
 					<sourceEntries>
 						<entry excluding="printf/Makefile|printf/test" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="ThirdParty"/>
