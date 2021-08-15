@@ -47,14 +47,13 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
+extern int Shell_Printf(const char* format, ...);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

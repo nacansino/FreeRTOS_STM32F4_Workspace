@@ -29,6 +29,7 @@
 #include <FreeRTOS.h>
 #include <task.h>
 #include <queue.h>
+#include <shell/shell.h>
 #include "SEGGER_SYSVIEW.h"
 
 #include <printf.h>
@@ -90,8 +91,6 @@ static void vTask3(void * pvParameters);
 static void vTask4(void * pvParameters);
 static void vTask_Shell_RX(void * pvParameters);
 static void vTask_Shell_TX(void * pvParameters);
-
-static int Shell_Printf(const char* format, ...);
 
 /* USER CODE END PFP */
 
@@ -185,6 +184,11 @@ int main(void)
   /* Start DBG_USR (USART3) Reception */
   HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
 
+  /* Initialize the shell */
+  sShellImpl shell_impl = {
+    .send_printf = Shell_Printf,
+  };
+  shell_boot(&shell_impl);
 
   /* Start the scheduler */
   vTaskStartScheduler();
@@ -456,6 +460,7 @@ static void vTask1(void * pvParameters)
 {
 	TickType_t xLastWakeTime;
 	xLastWakeTime = xTaskGetTickCount();
+	static uint8_t toggler;
 
 	while(1)
 	{
@@ -467,7 +472,7 @@ static void vTask1(void * pvParameters)
 		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 
-		Shell_Printf("fuck you\r\n");
+		toggler ^= 1;
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
 	}
 }
@@ -579,56 +584,13 @@ static void vTask4(void * pvParameters)
 
 static void vTask_Shell_RX(void * pvParameters)
 {
-	uint32_t ulNotifiedValue;
+	char c;
 
 	while(1)
 	{
 		/* Block indefinitely while we wait for user input */
-		xTaskNotifyWait(0x0, 0x0, &ulNotifiedValue, portMAX_DELAY);
-
-        if( ( ulNotifiedValue & 0x01 ) != 0 )
-        {
-            /* Bit 0 was set: CR/LF was received */
-
-        	/* Nothing to do here in theory */
-        }
-
-        if( ( ulNotifiedValue & 0x02 ) != 0 )
-        {
-            /* Bit 1 was set: Input queue is full */
-
-        	/* Raise Error */
-        }
-
-        /* Empty the RX character queue into a character buffer */
-        char charbuf[SHELL_QUEUE_RX_DEPTH];
-        char c;
-        size_t i = 0;
-
-     	while( xQueueReceive(shell_queue_rx, &c, (TickType_t)0 ) == pdTRUE )
-	    {
-     		/* xRxedStructure now contains a copy of xMessage. */
-     		charbuf[i++] = c;
-	    }
-
-     	/*Do something wih charbuf*/
-
-     	if (i < SHELL_QUEUE_RX_DEPTH)
-     	{
-     		charbuf[i] = '\0';
-     	}
-     	else
-     	{
-     		/* Truncate */
-     		charbuf[SHELL_QUEUE_RX_DEPTH-1] = '\0';
-     	}
-
-     	Shell_Printf("Got: %s\r\n", charbuf);
-		Shell_Printf("Test seriesssss\r\n");
-		Shell_Printf("Test seriesssss\r\n");
-		Shell_Printf("Test seriesssss\r\n");
-		Shell_Printf("Test seriesssss\r\n");
-
+     	(void)xQueueReceive(shell_queue_rx, &c, (TickType_t)portMAX_DELAY);
+     	shell_receive_char(c);
 	}
 }
 
@@ -669,20 +631,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		BaseType_t queue_rv;
 
 		/* Push to queue if received character is not CR*/
-		if (shell_char_rcv != '\r')
-		{
-			queue_rv = xQueueSendFromISR( shell_queue_rx, &shell_char_rcv, NULL );
+		queue_rv = xQueueSendFromISR( shell_queue_rx, &shell_char_rcv, NULL );
 
-			if (queue_rv != pdTRUE)
-			{
-				/* Send notification to task that buffer is full */
-				(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x02, eSetBits, NULL );
-			}
-		}
-		else
+		if (queue_rv != pdTRUE)
 		{
-			/* Notify the task that a carriage return was received */
-			(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x01, eSetBits, NULL );
+			/* Send notification to task that buffer is full */
+			(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x02, eSetBits, NULL );
 		}
 
 		HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
@@ -702,7 +656,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
  * Shell function
  * Do not use inside any ISR
  */
-static int Shell_Printf(const char* format, ...)
+int Shell_Printf(const char* format, ...)
 {
   ShellQueueTX_t buffer_tx;
   va_list va;

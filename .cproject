@@ -63,6 +63,7 @@
 									<listOptionValue builtIn="false" value="../ThirdParty/SEGGER/Config"/>
 									<listOptionValue builtIn="false" value="../ThirdParty/SEGGER/OS"/>
 									<listOptionValue builtIn="false" value="../ThirdParty/printf"/>
+									<listOptionValue builtIn="false" value="../ThirdParty/shell/include"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1025083288" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -116,6 +117,7 @@
 									<listOptionValue builtIn="false" value="../ThirdParty/SEGGER/SEGGER"/>
 									<listOptionValue builtIn="false" value="../ThirdParty/SEGGER/Config"/>
 									<listOptionValue builtIn="false" value="../ThirdParty/SEGGER/OS"/>
+									<listOptionValue builtIn="false" value="../ThirdParty/shell/include"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.487204397" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>
@@ -135,9 +137,9 @@
 					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.2015279500.288942467" name="SEGGER_RTT_Conf.h" rcbsApplicability="disable" resourcePath="ThirdParty/SEGGER/Config/SEGGER_RTT_Conf.h" toolsToInvoke=""/>
 					<fileInfo id="com.st.stm32cube.ide.mcu.gnu.managedbuild.config.exe.debug.2015279500.1008296638" name="Makefile" rcbsApplicability="disable" resourcePath="ThirdParty/printf/Makefile" toolsToInvoke=""/>
 					<sourceEntries>
-						<entry excluding="printf/Makefile|printf/test" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="ThirdParty"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Core"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Drivers"/>
+						<entry excluding="printf/Makefile|printf/test" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="ThirdParty"/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
