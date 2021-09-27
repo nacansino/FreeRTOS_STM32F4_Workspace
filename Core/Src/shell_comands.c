@@ -19,7 +19,7 @@
 
 // A simple Hello World command which prints "Hello World!"
 int cli_cmd_hello(int argc, char *argv[]) {
-  Shell_Printf("Hello World!");
+  Shell_Printf("Hello World!\r\n");
   return 0;
 }
 

@@ -48,6 +48,11 @@ typedef struct {
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SEGGER_DEBUGGER_MODE	(1)
+#define SEGGER_REALTIME_MODE	(2)
+
+#define SEGGER_MODE	SEGGER_REALTIME_MODE
+
 #define SHELL_QUEUE_RX_DEPTH	(32)
 #define SHELL_QUEUE_TX_DEPTH	(16)
 #define SHELL_QUEUE_TX_BUFF_SZ  (128)	/**!< Maximum size of each item in the
@@ -84,7 +89,6 @@ extern void SEGGER_UART_init(U32 baud);
 extern size_t uxTaskGetTCBSize(void);
 extern uint32_t uxTaskGetStackSize(TaskHandle_t xTask);
 
-static void vTask0(void * pvParameters);
 static void vTask1(void * pvParameters);
 static void vTask2(void * pvParameters);
 static void vTask3(void * pvParameters);
@@ -106,7 +110,7 @@ static void vTask_Shell_TX(void * pvParameters);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-  BaseType_t task0_rv, task1_rv, task2_rv,
+  BaseType_t task1_rv, task2_rv,
 	  	  	 task3_rv, task4_rv,
 			 task_shell_rx_rv, task_shell_tx_rv;
 
@@ -142,12 +146,13 @@ int main(void)
   /* Enable cycle counting by setting the bit 0 of DWT_CTRL */
   *DWT_CTRL |= 0x1;
 
+#if SEGGER_MODE==SEGGER_REALTIME_MODE
+  SEGGER_UART_init(500000);
+#elif SEGGER_MODE==SEGGER_DEBUGGER_MODE
   NVIC_SetPriorityGrouping(0); // Set when using segger on debugger mode (not realtime)
-
-  //SEGGER_UART_init(500000);
-
   SEGGER_SYSVIEW_Conf();
   SEGGER_SYSVIEW_Start();	// no need to do this since SEGGER_SYSVIEW_Start() is already called inside SEGGER_UART_init();
+#endif
 
   /* Determine how big a TCB is */
   char msg[32] = {0};
@@ -157,8 +162,6 @@ int main(void)
   /* Create the task, storing the handle.
    * With hard assertion check for passing tasks
    */
-  task0_rv = xTaskCreate(vTask0, "Task 0", 200, NULL, 1, &task0_handle);
-  configASSERT(task0_rv == pdPASS);
   task1_rv = xTaskCreate(vTask1, "Task 1", 200, NULL, 1, &task1_handle);
   configASSERT(task1_rv == pdPASS);
   task2_rv = xTaskCreate(vTask2, "Task 2", 200, NULL, 1, &task2_handle);
@@ -442,20 +445,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-static void vTask0(void * pvParameters)
-{
-	while(1)
-	{
-		if (xTaskNotifyWait(0, 0, NULL, 0))
-		{
-			// suspend self
-						vTaskSuspend(NULL);
-		}
-		HAL_Delay(4000);
-		vTaskDelay(pdMS_TO_TICKS(4000));
-	}
-}
-
 static void vTask1(void * pvParameters)
 {
 	TickType_t xLastWakeTime;
@@ -626,21 +615,30 @@ void vApplicationIdleHook( void )
  */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
+	BaseType_t xHigherPriorityTaskWoken;
+
+	xHigherPriorityTaskWoken = pdFALSE;
+
 	if (huart == &huart3)
 	{
 		BaseType_t queue_rv;
 
 		/* Push to queue if received character is not CR*/
-		queue_rv = xQueueSendFromISR( shell_queue_rx, &shell_char_rcv, NULL );
+		queue_rv = xQueueSendFromISR( shell_queue_rx, &shell_char_rcv, &xHigherPriorityTaskWoken );
 
 		if (queue_rv != pdTRUE)
 		{
 			/* Send notification to task that buffer is full */
-			(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x02, eSetBits, NULL );
+			(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x02, eSetBits, &xHigherPriorityTaskWoken );
 		}
 
 		HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
 	}
+
+    if( xHigherPriorityTaskWoken )
+    {
+        portYIELD_FROM_ISR (xHigherPriorityTaskWoken);
+    }
 }
 
 /**
@@ -648,8 +646,17 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
  */
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
+	BaseType_t xHigherPriorityTaskWoken;
+
+	xHigherPriorityTaskWoken = pdFALSE;
+
 	/* Notify the TX to wake up*/
-	(void)xTaskNotifyFromISR( task_shell_tx_handle, 0, eSetBits, NULL );
+	(void)xTaskNotifyFromISR( task_shell_tx_handle, 0, eSetBits, &xHigherPriorityTaskWoken );
+
+	if( xHigherPriorityTaskWoken )
+	{
+		portYIELD_FROM_ISR (xHigherPriorityTaskWoken);
+	}
 }
 
 /**
