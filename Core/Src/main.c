@@ -69,9 +69,10 @@ UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart3_tx;
 
 /* USER CODE BEGIN PV */
-static TaskHandle_t task0_handle, task1_handle,
-				          	task2_handle, task3_handle,
-					          task4_handle, task_shell_rx_handle, task_shell_tx_handle;
+static TaskHandle_t task1_handle,
+				    task2_handle, task3_handle,
+					task4_handle, task_shell_rx_handle,
+					task_shell_tx_handle;
 static char shell_char_rcv;
 
 QueueHandle_t shell_queue_rx, shell_queue_tx;
@@ -148,6 +149,7 @@ int main(void)
 
 #if SEGGER_MODE==SEGGER_REALTIME_MODE
   SEGGER_UART_init(500000);
+  SEGGER_SYSVIEW_Conf();
 #elif SEGGER_MODE==SEGGER_DEBUGGER_MODE
   NVIC_SetPriorityGrouping(0); // Set when using segger on debugger mode (not realtime)
   SEGGER_SYSVIEW_Conf();
@@ -300,7 +302,7 @@ static void MX_DMA_Init(void)
 
   /* DMA interrupt init */
   /* DMA1_Stream3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(DMA1_Stream3_IRQn, 6, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream3_IRQn);
 
 }
@@ -458,7 +460,6 @@ static void vTask1(void * pvParameters)
 			// suspend self
 			vTaskSuspend(NULL);
 		}
-		SEGGER_SYSVIEW_PrintfTarget("GREEN_TOGGLE stack size: %d", uxTaskGetStackSize(task1_handle));
 		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 
 		toggler ^= 1;
@@ -478,7 +479,6 @@ static void vTask2(void * pvParameters)
 			// suspend self
 			vTaskSuspend(NULL);
 		}
-		SEGGER_SYSVIEW_PrintfTarget("ORANGE_TOGGLE stack size: %d", uxTaskGetStackSize(task2_handle));
 		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(800));
 	}
@@ -496,7 +496,6 @@ static void vTask3(void * pvParameters)
 			// suspend self
 			vTaskSuspend(NULL);
 		}
-		SEGGER_SYSVIEW_PrintfTarget("RED_TOGGLE stack size: %d", uxTaskGetStackSize(task3_handle));
 		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(400));
 	}
@@ -533,15 +532,11 @@ static void vTask4(void * pvParameters)
 						case 3:
 							(void)xTaskNotify(task3_handle, 0xFFFFFFFF, eSetBits);
 							break;
-						case 4:
-							(void)xTaskNotify(task0_handle, 0xFFFFFFFF, eSetBits);
-							break;
 						case 5:
 							// resume all tasks then reset isPressedCtr
 							vTaskResume(task1_handle);
 							vTaskResume(task2_handle);
 							vTaskResume(task3_handle);
-							vTaskResume(task0_handle);
 							isPressedCtr = 0;
 						default:
 							// Nothing to do here
@@ -650,12 +645,23 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 
 	xHigherPriorityTaskWoken = pdFALSE;
 
-	/* Notify the TX to wake up*/
-	(void)xTaskNotifyFromISR( task_shell_tx_handle, 0, eSetBits, &xHigherPriorityTaskWoken );
+	if (huart == &huart3)
+	{
+		/* Notify the TX to wake up*/
+		(void)xTaskNotifyFromISR( task_shell_tx_handle, 0, eSetBits, &xHigherPriorityTaskWoken );
+	}
 
 	if( xHigherPriorityTaskWoken )
 	{
 		portYIELD_FROM_ISR (xHigherPriorityTaskWoken);
+	}
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+	if (huart == &huart3)
+	{
+		SEGGER_SYSVIEW_PrintfTarget("UART3 error: 0x08X", huart3.ErrorCode);
 	}
 }
 

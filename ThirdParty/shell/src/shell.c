@@ -10,8 +10,8 @@
 #define SHELL_PROMPT "shell> "
 
 // By default, enable shell RX feedback
-#ifndef SHELL_ENABLE_RX_FEEDBACK
-	#define ENABLE_RX_FEEDBACK
+#ifndef ENABLE_RX_FEEDBACK
+	#define ENABLE_RX_FEEDBACK	(1)
 #endif
 
 #define SHELL_FOR_EACH_COMMAND(command) \
@@ -105,7 +105,7 @@ void shell_receive_char(char c) {
   if (c == '\r' || prv_is_rx_buffer_full() || !prv_booted()) {
     return;
   }
-  #ifdef ENABLE_RX_FEEDBACK
+  #if ENABLE_RX_FEEDBACK
     SHELL_PRINTF("%c", c);
   #endif
 
