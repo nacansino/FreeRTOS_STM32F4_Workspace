@@ -71,7 +71,6 @@ static TaskHandle_t task1_handle,
 				    task2_handle, task3_handle,
 					task4_handle, task_shell_rx_handle,
 					task_shell_tx_handle;
-static char shell_char_rcv;
 
 QueueHandle_t shell_queue_rx, shell_queue_tx;
 
@@ -337,6 +336,9 @@ static void MX_USART3_UART_Init(void)
   LL_USART_Enable(USART3);
   /* USER CODE BEGIN USART3_Init 2 */
   LL_DMA_EnableIT_TC(DMA1, LL_DMA_STREAM_3);
+  LL_USART_EnableIT_RXNE(USART3);
+  LL_USART_EnableIT_IDLE(USART3);
+  LL_USART_EnableIT_ERROR(USART3);
   /* USER CODE END USART3_Init 2 */
 
 }
@@ -541,9 +543,7 @@ static void vTask1(void * pvParameters)
 			// suspend self
 			vTaskSuspend(NULL);
 		}
-		HAL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
-
-		Shell_Printf("Task1 Toggler\r\n");
+		LL_GPIO_TogglePin(LD4_GPIO_Port, LD4_Pin);
 
 		toggler ^= 1;
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(1000));
@@ -562,7 +562,7 @@ static void vTask2(void * pvParameters)
 			// suspend self
 			vTaskSuspend(NULL);
 		}
-		HAL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
+		LL_GPIO_TogglePin(LD3_GPIO_Port, LD3_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(800));
 	}
 }
@@ -579,7 +579,7 @@ static void vTask3(void * pvParameters)
 			// suspend self
 			vTaskSuspend(NULL);
 		}
-		HAL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
+		LL_GPIO_TogglePin(LD5_GPIO_Port, LD5_Pin);
 		vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(400));
 	}
 }
@@ -695,22 +695,27 @@ void vApplicationIdleHook( void )
   HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
 }
 
-#if 0
-/**
- * UART Receive Callback IT
- */
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+void USART3_IT_Callback(void)
 {
 	BaseType_t xHigherPriorityTaskWoken;
 
 	xHigherPriorityTaskWoken = pdFALSE;
 
-	if (huart == &huart3)
+	if(LL_USART_IsEnabledIT_RXNE(USART3) && LL_USART_IsActiveFlag_RXNE(USART3) != RESET)
 	{
+		/*Handle RXNE Interrupt*/
 		BaseType_t queue_rv;
+		char shell_char_rcv;
+
+		shell_char_rcv = (char)LL_USART_ReceiveData8(USART3);
 
 		/* Push to queue if received character is not CR*/
 		queue_rv = xQueueSendFromISR( shell_queue_rx, &shell_char_rcv, &xHigherPriorityTaskWoken );
+
+		if( xHigherPriorityTaskWoken )
+		{
+			portYIELD_FROM_ISR (xHigherPriorityTaskWoken);
+		}
 
 		if (queue_rv != pdTRUE)
 		{
@@ -718,16 +723,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 			(void)xTaskNotifyFromISR( task_shell_rx_handle, 0x02, eSetBits, &xHigherPriorityTaskWoken );
 		}
 
-		HAL_UART_Receive_IT(&huart3, (uint8_t*)&shell_char_rcv, 1);
 	}
-
-    if( xHigherPriorityTaskWoken )
-    {
-        portYIELD_FROM_ISR (xHigherPriorityTaskWoken);
-    }
+	else if(LL_USART_IsEnabledIT_ERROR(USART3) && LL_USART_IsActiveFlag_IDLE(USART3) != RESET)
+	{
+		/*ToDo: Handle IDLE Interrupt*/
+		LL_USART_ClearFlag_IDLE(USART3);
+	}
+	else if(LL_USART_IsEnabledIT_ERROR(USART3) && LL_USART_IsActiveFlag_ORE(USART3) != RESET)
+	{
+		/*ToDo: Handle ORE Interrupt*/
+		LL_USART_ClearFlag_ORE(USART3);
+	}
 }
-
-#endif
 
 /**
  * UART Transmit Callback IT
@@ -738,7 +745,7 @@ void USART3_TX_DMA1_Callback(void)
 
 	xHigherPriorityTaskWoken = pdFALSE;
 
-	if (LL_DMA_IsActiveFlag_TC3(DMA1) == 1)
+	if (LL_DMA_IsEnabledIT_TC(DMA1, LL_DMA_STREAM_3) && LL_DMA_IsActiveFlag_TC3(DMA1))
 	{
 		/* Clear DMA flag */
 		LL_DMA_ClearFlag_TC3(DMA1);

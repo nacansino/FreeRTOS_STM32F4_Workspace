@@ -65,6 +65,7 @@ void Error_Handler(void);
 /* USER CODE BEGIN EFP */
 extern int Shell_Printf(const char* format, ...);
 extern void USART3_TX_DMA1_Callback(void);
+extern void USART3_IT_Callback(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
