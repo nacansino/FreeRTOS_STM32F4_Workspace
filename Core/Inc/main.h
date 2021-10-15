@@ -30,6 +30,7 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f4xx_hal.h"
 #include "stm32f4xx_ll_dma.h"
+#include "stm32f4xx_ll_i2c.h"
 #include "stm32f4xx_ll_rcc.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_system.h"
@@ -133,10 +134,10 @@ extern void USART3_IT_Callback(void);
 #define OTG_FS_OverCurrent_GPIO_Port GPIOD
 #define SWO_Pin LL_GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
-#define Audio_SCL_Pin LL_GPIO_PIN_6
-#define Audio_SCL_GPIO_Port GPIOB
-#define Audio_SDA_Pin LL_GPIO_PIN_9
-#define Audio_SDA_GPIO_Port GPIOB
+#define IMU_SCL_Pin LL_GPIO_PIN_6
+#define IMU_SCL_GPIO_Port GPIOB
+#define IMU_SDA_Pin LL_GPIO_PIN_9
+#define IMU_SDA_GPIO_Port GPIOB
 #define MEMS_INT2_Pin LL_GPIO_PIN_1
 #define MEMS_INT2_GPIO_Port GPIOE
 /* USER CODE BEGIN Private defines */

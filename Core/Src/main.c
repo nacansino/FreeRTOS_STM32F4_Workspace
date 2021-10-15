@@ -31,8 +31,8 @@
 #include <queue.h>
 #include <shell/shell.h>
 #include "SEGGER_SYSVIEW.h"
-
 #include <printf.h>
+#include <i2c.h>
 
 /* USER CODE END Includes */
 
@@ -70,7 +70,7 @@ typedef struct {
 static TaskHandle_t task1_handle,
 				    task2_handle, task3_handle,
 					task4_handle, task_shell_rx_handle,
-					task_shell_tx_handle;
+					task_shell_tx_handle, task_imu_handle;
 
 QueueHandle_t shell_queue_rx, shell_queue_tx;
 
@@ -81,6 +81,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_DMA_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 extern void SEGGER_UART_init(U32 baud);
 
@@ -93,7 +94,7 @@ static void vTask3(void * pvParameters);
 static void vTask4(void * pvParameters);
 static void vTask_Shell_RX(void * pvParameters);
 static void vTask_Shell_TX(void * pvParameters);
-
+static void vTaskIMU(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -110,7 +111,8 @@ int main(void)
   /* USER CODE BEGIN 1 */
   BaseType_t task1_rv, task2_rv,
 	  	  	 task3_rv, task4_rv,
-			 task_shell_rx_rv, task_shell_tx_rv;
+			 task_shell_rx_rv, task_shell_tx_rv,
+			 task_imu;
 
   /* USER CODE END 1 */
 
@@ -137,9 +139,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-
-  MX_DMA_Init();
   MX_USART3_UART_Init();
+  MX_DMA_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
   /* Enable cycle counting by setting the bit 0 of DWT_CTRL */
@@ -174,6 +176,8 @@ int main(void)
   configASSERT(task_shell_rx_rv == pdPASS);
   task_shell_tx_rv = xTaskCreate(vTask_Shell_TX, "Shell TX Task", 200, NULL, 4, &task_shell_tx_handle);
   configASSERT(task_shell_tx_rv == pdPASS);
+  task_imu = xTaskCreate(vTaskIMU, "Task IMU", 240, NULL, 3, &task_imu_handle);
+  configASSERT(task_imu == pdPASS);
 
   /* Create the queues for the debugger */
   shell_queue_rx = xQueueCreate(SHELL_QUEUE_RX_DEPTH, sizeof(char));
@@ -256,6 +260,106 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  LL_I2C_InitTypeDef I2C_InitStruct = {0};
+
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
+  /**I2C1 GPIO Configuration
+  PB6   ------> I2C1_SCL
+  PB9   ------> I2C1_SDA
+  */
+  GPIO_InitStruct.Pin = IMU_SCL_Pin|IMU_SDA_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_OPENDRAIN;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_4;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* Peripheral clock enable */
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_I2C1);
+
+  /* I2C1 DMA Init */
+
+  /* I2C1_RX Init */
+  LL_DMA_SetChannelSelection(DMA1, LL_DMA_STREAM_0, LL_DMA_CHANNEL_1);
+
+  LL_DMA_SetDataTransferDirection(DMA1, LL_DMA_STREAM_0, LL_DMA_DIRECTION_PERIPH_TO_MEMORY);
+
+  LL_DMA_SetStreamPriorityLevel(DMA1, LL_DMA_STREAM_0, LL_DMA_PRIORITY_HIGH);
+
+  LL_DMA_SetMode(DMA1, LL_DMA_STREAM_0, LL_DMA_MODE_NORMAL);
+
+  LL_DMA_SetPeriphIncMode(DMA1, LL_DMA_STREAM_0, LL_DMA_PERIPH_NOINCREMENT);
+
+  LL_DMA_SetMemoryIncMode(DMA1, LL_DMA_STREAM_0, LL_DMA_MEMORY_INCREMENT);
+
+  LL_DMA_SetPeriphSize(DMA1, LL_DMA_STREAM_0, LL_DMA_PDATAALIGN_BYTE);
+
+  LL_DMA_SetMemorySize(DMA1, LL_DMA_STREAM_0, LL_DMA_MDATAALIGN_BYTE);
+
+  LL_DMA_DisableFifoMode(DMA1, LL_DMA_STREAM_0);
+
+  /* I2C1_TX Init */
+  LL_DMA_SetChannelSelection(DMA1, LL_DMA_STREAM_6, LL_DMA_CHANNEL_1);
+
+  LL_DMA_SetDataTransferDirection(DMA1, LL_DMA_STREAM_6, LL_DMA_DIRECTION_MEMORY_TO_PERIPH);
+
+  LL_DMA_SetStreamPriorityLevel(DMA1, LL_DMA_STREAM_6, LL_DMA_PRIORITY_HIGH);
+
+  LL_DMA_SetMode(DMA1, LL_DMA_STREAM_6, LL_DMA_MODE_NORMAL);
+
+  LL_DMA_SetPeriphIncMode(DMA1, LL_DMA_STREAM_6, LL_DMA_PERIPH_NOINCREMENT);
+
+  LL_DMA_SetMemoryIncMode(DMA1, LL_DMA_STREAM_6, LL_DMA_MEMORY_INCREMENT);
+
+  LL_DMA_SetPeriphSize(DMA1, LL_DMA_STREAM_6, LL_DMA_PDATAALIGN_BYTE);
+
+  LL_DMA_SetMemorySize(DMA1, LL_DMA_STREAM_6, LL_DMA_MDATAALIGN_BYTE);
+
+  LL_DMA_DisableFifoMode(DMA1, LL_DMA_STREAM_6);
+
+  /* I2C1 interrupt Init */
+  NVIC_SetPriority(I2C1_EV_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),6, 0));
+  NVIC_EnableIRQ(I2C1_EV_IRQn);
+  NVIC_SetPriority(I2C1_ER_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),5, 0));
+  NVIC_EnableIRQ(I2C1_ER_IRQn);
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  /** I2C Initialization
+  */
+  LL_I2C_DisableOwnAddress2(I2C1);
+  LL_I2C_DisableGeneralCall(I2C1);
+  LL_I2C_EnableClockStretching(I2C1);
+  I2C_InitStruct.PeripheralMode = LL_I2C_MODE_I2C;
+  I2C_InitStruct.ClockSpeed = 400000;
+  I2C_InitStruct.DutyCycle = LL_I2C_DUTYCYCLE_2;
+  I2C_InitStruct.OwnAddress1 = 0;
+  I2C_InitStruct.TypeAcknowledge = LL_I2C_ACK;
+  I2C_InitStruct.OwnAddrSize = LL_I2C_OWNADDRESS1_7BIT;
+  LL_I2C_Init(I2C1, &I2C_InitStruct);
+  LL_I2C_SetOwnAddress2(I2C1, 0);
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief USART3 Initialization Function
   * @param None
   * @retval None
@@ -318,7 +422,7 @@ static void MX_USART3_UART_Init(void)
   LL_DMA_DisableFifoMode(DMA1, LL_DMA_STREAM_3);
 
   /* USART3 interrupt Init */
-  NVIC_SetPriority(USART3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),5, 0));
+  NVIC_SetPriority(USART3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),6, 0));
   NVIC_EnableIRQ(USART3_IRQn);
 
   /* USER CODE BEGIN USART3_Init 1 */
@@ -354,9 +458,15 @@ static void MX_DMA_Init(void)
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_DMA1);
 
   /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  NVIC_SetPriority(DMA1_Stream0_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),6, 0));
+  NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream3_IRQn interrupt configuration */
   NVIC_SetPriority(DMA1_Stream3_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),6, 0));
   NVIC_EnableIRQ(DMA1_Stream3_IRQn);
+  /* DMA1_Stream6_IRQn interrupt configuration */
+  NVIC_SetPriority(DMA1_Stream6_IRQn, NVIC_EncodePriority(NVIC_GetPriorityGrouping(),6, 0));
+  NVIC_EnableIRQ(DMA1_Stream6_IRQn);
 
 }
 
@@ -484,15 +594,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   LL_GPIO_Init(OTG_FS_OverCurrent_GPIO_Port, &GPIO_InitStruct);
-
-  /**/
-  GPIO_InitStruct.Pin = Audio_SCL_Pin|Audio_SDA_Pin;
-  GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
-  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_OPENDRAIN;
-  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
-  GPIO_InitStruct.Alternate = LL_GPIO_AF_4;
-  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /**/
   LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTA, LL_SYSCFG_EXTI_LINE0);
@@ -682,6 +783,52 @@ static void vTask_Shell_TX(void * pvParameters)
 			xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
 
 		}
+	}
+}
+
+static void vTaskIMU(void * pvParameters)
+{
+	#define DEV_ADDR_MAG 0x1C
+	#define DEV_ADDR_AG  0x6A
+	#define DEV_ADDR_WRITE(addr) (addr << 1)
+	#define DEV_ADDR_READ(addr)  ((addr << 1) | 1)
+
+	int8_t rv;
+
+	while(1)
+	{
+		/* Start after 1s */
+		vTaskDelay(1000);
+
+		/* Enable */
+		LL_I2C_Enable(I2C1);
+
+		/* Start (start condition + Address) */
+		rv = I2C_Start(I2C1, DEV_ADDR_WRITE(DEV_ADDR_AG));
+		if (rv) Shell_Printf("I2C start Err [%d]!\r\n", rv);
+
+		/* Send register sub-address (WHO-AM-I) */
+		uint8_t subaddr = 0x0F;
+		rv = I2C_Write(I2C1, &subaddr, 1);
+		if (rv) Shell_Printf("I2C write Err [%d]!\r\n", rv);
+
+		/* Send repeated start with read-address */
+		rv = I2C_Start(I2C1, DEV_ADDR_READ(DEV_ADDR_AG));
+		if (rv) Shell_Printf("I2C repeated start Err [%d]!\r\n", rv);
+		uint8_t wmidata = 0;
+		rv = I2C_Read(I2C1, &wmidata, 1);
+		if (rv) Shell_Printf("I2C read Err [%d]!\r\n", rv);
+
+		/* Send STOP condition */
+		rv = I2C_Stop(I2C1);
+
+		/* Disable */
+		LL_I2C_Disable(I2C1);
+
+		Shell_Printf("I2C done! Got %02X\r\n", wmidata);
+
+		/* Done */
+		vTaskSuspend(NULL);
 	}
 }
 
