@@ -32,6 +32,7 @@
 #include <shell/shell.h>
 #include "SEGGER_SYSVIEW.h"
 #include <printf.h>
+#include <lsm9ds1.h>
 #include <i2c.h>
 
 /* USER CODE END Includes */
@@ -788,10 +789,6 @@ static void vTask_Shell_TX(void * pvParameters)
 
 static void vTaskIMU(void * pvParameters)
 {
-	#define DEV_ADDR_MAG 0x1C
-	#define DEV_ADDR_AG  0x6A
-	#define DEV_ADDR_WRITE(addr) (addr << 1)
-	#define DEV_ADDR_READ(addr)  ((addr << 1) | 1)
 
 	int8_t rv;
 
@@ -800,32 +797,21 @@ static void vTaskIMU(void * pvParameters)
 		/* Start after 1s */
 		vTaskDelay(1000);
 
+		/* Reset bus */
+		rv = I2C_BusReset(GPIOB, IMU_SCL_Pin, GPIOB, IMU_SDA_Pin);
+		if (rv) Shell_Printf("I2C bus reset Err [%d]!\r\n", rv);
+
 		/* Enable */
 		LL_I2C_Enable(I2C1);
 
-		/* Start (start condition + Address) */
-		rv = I2C_Start(I2C1, DEV_ADDR_WRITE(DEV_ADDR_AG));
-		if (rv) Shell_Printf("I2C start Err [%d]!\r\n", rv);
-
-		/* Send register sub-address (WHO-AM-I) */
-		uint8_t subaddr = 0x0F;
-		rv = I2C_Write(I2C1, &subaddr, 1);
-		if (rv) Shell_Printf("I2C write Err [%d]!\r\n", rv);
-
-		/* Send repeated start with read-address */
-		rv = I2C_Start(I2C1, DEV_ADDR_READ(DEV_ADDR_AG));
-		if (rv) Shell_Printf("I2C repeated start Err [%d]!\r\n", rv);
-		uint8_t wmidata = 0;
-		rv = I2C_Read(I2C1, &wmidata, 1);
-		if (rv) Shell_Printf("I2C read Err [%d]!\r\n", rv);
-
-		/* Send STOP condition */
-		rv = I2C_Stop(I2C1);
+		LSM9DS1_Err_t err_imu = LSM9DS1_Init(I2C1);
+		if (err_imu != LSM9DS1_Err_OK)
+		{
+			Shell_Printf("IMU Init Error! [%d]!\r\n", err_imu);
+		}
 
 		/* Disable */
 		LL_I2C_Disable(I2C1);
-
-		Shell_Printf("I2C done! Got %02X\r\n", wmidata);
 
 		/* Done */
 		vTaskSuspend(NULL);
