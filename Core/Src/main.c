@@ -789,8 +789,7 @@ static void vTask_Shell_TX(void * pvParameters)
 
 static void vTaskIMU(void * pvParameters)
 {
-  TickType_t xLastWakeTime;
-	xLastWakeTime = xTaskGetTickCount();
+	TickType_t xLastWakeTime;
 
 	while(1)
 	{
@@ -812,7 +811,7 @@ static void vTaskIMU(void * pvParameters)
 
 
 	/* Start acquisition after 100ms since initialization*/
-	vTaskDelay(100);
+	vTaskDelay(pdMS_TO_TICKS(100));
 
     /* Try read periodically */
 
@@ -821,6 +820,10 @@ static void vTaskIMU(void * pvParameters)
 	float accel_xyz_ms2[3];
 	float gyro_xyz_ms2[3];
 	uint32_t ctr = 0;
+	uint8_t daq_err_cnt = 0;
+	uint8_t bus_reset_cnt = 0;
+
+	xLastWakeTime = xTaskGetTickCount();
 
     while(1)
     {
@@ -829,8 +832,43 @@ static void vTaskIMU(void * pvParameters)
       if ( err_daq != LSM9DS1_Err_OK)
       {
         Shell_Printf("IMU DAQ error! [%d]!\r\n", err_daq);
-        LL_I2C_Disable(I2C1);
-        vTaskSuspend(NULL);
+        daq_err_cnt++;
+
+        if (daq_err_cnt > 10)
+        {
+        	if (bus_reset_cnt < 5)
+        	{
+
+            	/* Reset I2C bus and re-initialize device */
+            	LL_I2C_Disable(I2C1);
+            	rv = I2C_BusReset(GPIOB, IMU_SCL_Pin, GPIOB, IMU_SDA_Pin);
+            	if (rv)
+            	{
+            		Shell_Printf("I2C bus reset Err [%d]!\r\n", rv);
+            	}
+            	else
+            	{
+            		Shell_Printf("I2C bus reset OK");
+            	}
+            	LL_I2C_Enable(I2C1);
+
+        		vTaskDelay(pdMS_TO_TICKS(100));
+
+            	LSM9DS1_Err_t err_imu = LSM9DS1_Init(I2C1);
+    			if (err_imu != LSM9DS1_Err_OK)	Shell_Printf("IMU re-init Error! [%d]!\r\n", err_imu);
+
+        		vTaskDelay(pdMS_TO_TICKS(100));
+
+            	daq_err_cnt = 0;
+            	bus_reset_cnt++;
+        	}
+        	else
+        	{
+        		/* Give up. Stop acquisition */
+                LL_I2C_Disable(I2C1);
+                vTaskSuspend(NULL);
+        	}
+        }
       }
       else
       {
@@ -842,6 +880,9 @@ static void vTaskIMU(void * pvParameters)
     				  accel_xyz_ms2[0], accel_xyz_ms2[1], accel_xyz_ms2[2],
 					  gyro_xyz_ms2[0], gyro_xyz_ms2[1], gyro_xyz_ms2[2]);
     	  }
+
+    	  /* Clear DAQ error counter */
+    	  daq_err_cnt = 0;
       }
       
       /* 5ms sampling loop rate for 200Hz throughput (can't.. only doing 10hz for now) */

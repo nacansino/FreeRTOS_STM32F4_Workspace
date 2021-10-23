@@ -7,10 +7,10 @@
 
 typedef enum {
     LSM9DS1_Err_OK = 0,
-    LSM9DS1_Err_I2C,
-    LSM9DS1_Err_DataRead,
+    LSM9DS1_Err_I2C = -1,
+    LSM9DS1_Err_DataRead = -2,
 
-    LSM9DS1_Err_Init_NullPtr = -1,
+    LSM9DS1_Err_Init_NullPtr = -3,
 } LSM9DS1_Err_t;
 
 extern LSM9DS1_Err_t LSM9DS1_Init(I2C_TypeDef *I2Cx);

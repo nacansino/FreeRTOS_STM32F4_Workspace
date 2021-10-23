@@ -4,7 +4,7 @@
 
 static uint32_t timeout_ctr = 0;
 
-#define TIMEOUT_DEADLINE 	(10000)
+#define TIMEOUT_DEADLINE 	(5000)
 #define IS_NOT_TIMEOUT 		(timeout_ctr++ < TIMEOUT_DEADLINE)
 #define HAS_TIMED_OUT 		(timeout_ctr >= TIMEOUT_DEADLINE)
 #define RESET_TIMEOUT_CTR	(timeout_ctr = 0)
@@ -158,7 +158,6 @@ int8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t* data, const size_t len, const I2C_Na
 		if (HAS_TIMED_OUT)
 		{
 			/* Handle timeout */
-			taskEXIT_CRITICAL();
 			return -1;
 		}
 
