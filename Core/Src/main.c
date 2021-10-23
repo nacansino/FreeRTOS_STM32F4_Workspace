@@ -429,7 +429,7 @@ static void MX_USART3_UART_Init(void)
   /* USER CODE BEGIN USART3_Init 1 */
 
   /* USER CODE END USART3_Init 1 */
-  USART_InitStruct.BaudRate = 115200;
+  USART_InitStruct.BaudRate = 230400;
   USART_InitStruct.DataWidth = LL_USART_DATAWIDTH_8B;
   USART_InitStruct.StopBits = LL_USART_STOPBITS_1;
   USART_InitStruct.Parity = LL_USART_PARITY_NONE;
@@ -872,11 +872,12 @@ static void vTaskIMU(void * pvParameters)
       }
       else
       {
-    	  if (ctr++ % 20 == 0)
+    	  if (ctr++ % 4 == 0)
     	  {
     		  LSM9DS1_RawXLToMS2(accel_xyz, accel_xyz_ms2, 3);
     		  LSM9DS1_RawGToDPS(gyro_xyz, gyro_xyz_ms2, 3);
-    		  Shell_Printf("a{%0.3f | %0.3f | %0.3f} g{%0.3f | %0.3f | %0.3f}\r\n",
+    		  Shell_Printf("%d, %0.4f, %0.4f, %0.4f, %0.4f, %0.4f, %0.4f\r\n",
+    				  xTaskGetTickCount(),
     				  accel_xyz_ms2[0], accel_xyz_ms2[1], accel_xyz_ms2[2],
 					  gyro_xyz_ms2[0], gyro_xyz_ms2[1], gyro_xyz_ms2[2]);
     	  }
@@ -885,7 +886,7 @@ static void vTaskIMU(void * pvParameters)
     	  daq_err_cnt = 0;
       }
       
-      /* 5ms sampling loop rate for 200Hz throughput (can't.. only doing 10hz for now) */
+      /* 5ms sampling loop rate for 200Hz throughput */
       vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5));
     }
 

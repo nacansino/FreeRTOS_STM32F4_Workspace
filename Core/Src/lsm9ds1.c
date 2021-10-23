@@ -44,13 +44,18 @@ LSM9DS1_Err_t LSM9DS1_Init(I2C_TypeDef *I2Cx)
 
 	/* Config Accel */
 	data = 	LSM9DS1_ACCELEROMETER_DATA_RATE_238HZ |		// accl output rate 238Hz
-			LSM9DS1_ACCELEROMETER_SCALE_4G;				// Set Accelerometer full scale
+			LSM9DS1_ACCELEROMETER_SCALE_8G;				// Set Accelerometer full scale
 	prv_writeReg(LSM9DS1_REGISTER_CTRL_REG6_XL, &data, 1);
 	
 	/* Config Gyro */
 	data = 	LSM9DS1_GYROSCOPE_DATA_RATE_238_HZ |	// gyro output rate 238Hz
-			LSM9DS1_GYROSCOPE_SCALE_245_DPS;		// Set gyro full scale 245dps
+			LSM9DS1_GYROSCOPE_SCALE_500_DPS;		// Set gyro full scale 245dps
 	prv_writeReg(LSM9DS1_REGISTER_CTRL_REG1_G, &data, 1);
+	data = 	(1 << 6) |								// HPF enabled
+			(7);									// Set HPF at 0.1Hz at 238Hz ODR
+	prv_writeReg(LSM9DS1_REGISTER_CTRL_REG3_G, &data, 1);
+	data = 	(1);									// OUT_SEL (select the filtered
+	prv_writeReg(LSM9DS1_REGISTER_CTRL_REG2_G, &data, 1);
 
 	return LSM9DS1_Err_OK;
 }
@@ -59,7 +64,7 @@ void LSM9DS1_RawXLToMS2(int16_t* i_accel_xyz, float* o_accel_xyz, uint8_t len)
 {
 	for(uint8_t i = 0; i < len; ++i)
 	{
-		o_accel_xyz[i] = (float)(i_accel_xyz[i]) * XL_FSR_4G * XL_ACC_GRAV /  (1 << 15);
+		o_accel_xyz[i] = (float)(i_accel_xyz[i]) * XL_FSR_8G * XL_ACC_GRAV /  (1 << 15);
 	}
 }
 
@@ -67,7 +72,7 @@ void LSM9DS1_RawGToDPS(int16_t* i_gyro_xyz, float* o_gyro_xyz, uint8_t len)
 {
 	for(uint8_t i = 0; i < len; ++i)
 	{
-		o_gyro_xyz[i] = (float)(i_gyro_xyz[i]) * G_FSR_245dps /  (1 << 15);
+		o_gyro_xyz[i] = (float)(i_gyro_xyz[i]) * G_FSR_500dps /  (1 << 15);
 	}
 }
 
