@@ -13,7 +13,7 @@ typedef enum
 	XL_FSR_2G  = 2,
 	XL_FSR_4G  = 4,
 	XL_FSR_8G  = 8,
-	XL_FSR_16G = 16,
+	XL_FSR_16G = 24, /*!< This is the conversion factor for 16g as per datasheet 2.1 to produce 0.732 mg/LSB */
 } XL_FSR_t;
 
 typedef enum
@@ -44,7 +44,7 @@ LSM9DS1_Err_t LSM9DS1_Init(I2C_TypeDef *I2Cx)
 
 	/* Config Accel */
 	data = 	LSM9DS1_ACCELEROMETER_DATA_RATE_238HZ |		// accl output rate 238Hz
-			LSM9DS1_ACCELEROMETER_SCALE_16G;			// Set Accelerometer full scale
+			LSM9DS1_ACCELEROMETER_SCALE_4G;				// Set Accelerometer full scale
 	prv_writeReg(LSM9DS1_REGISTER_CTRL_REG6_XL, &data, 1);
 	
 	/* Config Gyro */
@@ -59,7 +59,7 @@ void LSM9DS1_RawXLToMS2(int16_t* i_accel_xyz, float* o_accel_xyz, uint8_t len)
 {
 	for(uint8_t i = 0; i < len; ++i)
 	{
-		o_accel_xyz[i] = (float)(i_accel_xyz[i]) * XL_FSR_16G * XL_ACC_GRAV /  (1 << 15);
+		o_accel_xyz[i] = (float)(i_accel_xyz[i]) * XL_FSR_4G * XL_ACC_GRAV /  (1 << 15);
 	}
 }
 
