@@ -86,15 +86,7 @@ int8_t I2C_BusReset(GPIO_TypeDef *GPIOx_SCK, uint32_t PinMask_SCK,
 	return 0;
 }
 
-/**
- * @brief 
- * 
- * @param I2Cx 
- * @param data 
- * @param len 
- * @return int8_t 
- */
-int8_t I2C_Write(I2C_TypeDef *I2Cx, const uint8_t* data, const size_t len)
+int8_t I2C_Write(I2C_TypeDef *I2Cx, const uint8_t* data, const size_t len, const I2C_GenStop_t gen_stop)
 {
 	size_t i = 0;
 
@@ -127,22 +119,19 @@ int8_t I2C_Write(I2C_TypeDef *I2Cx, const uint8_t* data, const size_t len)
 			return -3;
 		}
 
+		/* Generate stop during the last bit */
+		if (gen_stop && (i == len - 1))
+		{
+			LL_I2C_GenerateStopCondition(I2Cx);
+		}
+
 		i++;
 	}
 
 	return 0;
 }
 
-/**
- * @brief 
- * 
- * @param I2Cx 
- * @param data 
- * @param len 
- * @param nack_last 
- * @return int8_t 
- */
-int8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t* data, size_t len, const uint8_t nack_last)
+int8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t* data, const size_t len, const I2C_Nack_t nack_last, const I2C_GenStop_t gen_stop)
 {
 	size_t i = 0;
 
@@ -155,6 +144,12 @@ int8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t* data, size_t len, const uint8_t nack
 		{
 			/* No acknowledgment on the next received data */
 			LL_I2C_AcknowledgeNextData(I2Cx, LL_I2C_NACK);
+
+			/* Generate stop condition after this reception */
+			if (gen_stop)
+			{
+				LL_I2C_GenerateStopCondition(I2Cx);
+			}
 		}
 
 		/* Wait for the receive reg to be not empty */
@@ -163,22 +158,11 @@ int8_t I2C_Read(I2C_TypeDef *I2Cx, uint8_t* data, size_t len, const uint8_t nack
 		if (HAS_TIMED_OUT)
 		{
 			/* Handle timeout */
+			taskEXIT_CRITICAL();
 			return -1;
 		}
 
 		data[i] = LL_I2C_ReceiveData8(I2Cx);
-
-		/* Wait for byte transfer completion
-		 * This is NOT set after a NACK reception
-		 */
-		if ( nack_last ) break;
-		RESET_TIMEOUT_CTR;
-		while (!LL_I2C_IsActiveFlag_BTF(I2Cx) && IS_NOT_TIMEOUT) taskYIELD();
-		if (HAS_TIMED_OUT)
-		{
-			/* Handle timeout */
-			return -2;
-		}
 
 		i++;
 	}

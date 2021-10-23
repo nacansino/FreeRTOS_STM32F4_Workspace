@@ -177,7 +177,7 @@ int main(void)
   configASSERT(task_shell_rx_rv == pdPASS);
   task_shell_tx_rv = xTaskCreate(vTask_Shell_TX, "Shell TX Task", 200, NULL, 4, &task_shell_tx_handle);
   configASSERT(task_shell_tx_rv == pdPASS);
-  task_imu = xTaskCreate(vTaskIMU, "Task IMU", 240, NULL, 3, &task_imu_handle);
+  task_imu = xTaskCreate(vTaskIMU, "Task IMU", 240, NULL, 5, &task_imu_handle);
   configASSERT(task_imu == pdPASS);
 
   /* Create the queues for the debugger */
@@ -789,26 +789,64 @@ static void vTask_Shell_TX(void * pvParameters)
 
 static void vTaskIMU(void * pvParameters)
 {
-
-	int8_t rv;
+  TickType_t xLastWakeTime;
+	xLastWakeTime = xTaskGetTickCount();
 
 	while(1)
 	{
-		/* Start after 1s */
-		vTaskDelay(1000);
+    int8_t rv;
 
-		/* Reset bus */
-		rv = I2C_BusReset(GPIOB, IMU_SCL_Pin, GPIOB, IMU_SDA_Pin);
-		if (rv) Shell_Printf("I2C bus reset Err [%d]!\r\n", rv);
 
-		/* Enable */
-		LL_I2C_Enable(I2C1);
+	/* Reset bus */
+	rv = I2C_BusReset(GPIOB, IMU_SCL_Pin, GPIOB, IMU_SDA_Pin);
+	if (rv) Shell_Printf("I2C bus reset Err [%d]!\r\n", rv);
 
-		LSM9DS1_Err_t err_imu = LSM9DS1_Init(I2C1);
-		if (err_imu != LSM9DS1_Err_OK)
-		{
-			Shell_Printf("IMU Init Error! [%d]!\r\n", err_imu);
-		}
+	/* Enable */
+	LL_I2C_Enable(I2C1);
+
+	LSM9DS1_Err_t err_imu = LSM9DS1_Init(I2C1);
+	if (err_imu != LSM9DS1_Err_OK)
+	{
+		Shell_Printf("IMU Init Error! [%d]!\r\n", err_imu);
+	}
+
+
+	/* Start acquisition after 100ms since initialization*/
+	vTaskDelay(100);
+
+    /* Try read periodically */
+
+	int16_t accel_xyz[3];
+	int16_t gyro_xyz[3];
+	float accel_xyz_ms2[3];
+	float gyro_xyz_ms2[3];
+	uint32_t ctr = 0;
+
+    while(1)
+    {
+      LSM9DS1_Err_t err_daq = LSM9DS1_ReadRawData(accel_xyz, gyro_xyz);
+      
+      if ( err_daq != LSM9DS1_Err_OK)
+      {
+        Shell_Printf("IMU DAQ error! [%d]!\r\n", err_daq);
+        LL_I2C_Disable(I2C1);
+        vTaskSuspend(NULL);
+      }
+      else
+      {
+    	  if (ctr++ % 20 == 0)
+    	  {
+    		  LSM9DS1_RawXLToMS2(accel_xyz, accel_xyz_ms2, 3);
+    		  LSM9DS1_RawGToDPS(gyro_xyz, gyro_xyz_ms2, 3);
+    		  Shell_Printf("a{%0.3f | %0.3f | %0.3f} g{%0.3f | %0.3f | %0.3f}\r\n",
+    				  accel_xyz_ms2[0], accel_xyz_ms2[1], accel_xyz_ms2[2],
+					  gyro_xyz_ms2[0], gyro_xyz_ms2[1], gyro_xyz_ms2[2]);
+    	  }
+      }
+      
+      /* 5ms sampling loop rate for 200Hz throughput (can't.. only doing 10hz for now) */
+      vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(5));
+    }
 
 		/* Disable */
 		LL_I2C_Disable(I2C1);
